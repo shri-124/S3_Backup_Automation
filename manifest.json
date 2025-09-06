@@ -1,0 +1,24 @@
+{
+  "files": {
+    "a.txt": {
+      "key": "laptop-001/a.txt",
+      "sha256": "dbdafa0cdaf2b8a88724af1cd173bceba0f6e4bb75d1bff6ccf2f012dc9f1a69",
+      "size": 15,
+      "mtime": 1757200423,
+      "version_id": "aKAaNec8gq_5TKH8sGyELmtvq8w4.h7l",
+      "verified": true,
+      "ts": 1757200429
+    },
+    "b.txt": {
+      "key": "laptop-001/b.txt",
+      "sha256": "877cfffa459d1c11793b970dd94f9489ef2bf4d2e446acfafef690ee595422d0",
+      "size": 7,
+      "mtime": 1757200183,
+      "version_id": "MVzwzpm4A4CTWp.Nw.svt9U6gpiK0UAN",
+      "verified": true,
+      "ts": 1757200217
+    }
+  },
+  "created_at": "2025-09-06T23:10:16.821536Z",
+  "updated_at": "2025-09-06T23:13:49.579644Z"
+}
