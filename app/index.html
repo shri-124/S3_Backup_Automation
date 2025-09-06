@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S3 Backup Tool — Fast, Verifiable Backups to S3/MinIO</title>
+  <meta name="description" content="A simple, reliable, and verifiable backup + restore CLI to S3/MinIO. Incremental uploads, SHA-256 integrity checks, and versioning.">
+  <meta property="og:title" content="S3 Backup Tool" />
+  <meta property="og:description" content="Incremental backups, SHA-256 verification, S3 versioning. Built for SRE demos." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#0f172a">
+  <style>
+    :root{
+      --bg: #0b1220; /* slate-950-ish */
+      --card: #0f172a; /* slate-900 */
+      --muted:#94a3b8; /* slate-400 */
+      --text: #e5e7eb; /* zinc-200 */
+      --brand:#60a5fa; /* blue-400 */
+      --brand-strong:#3b82f6; /* blue-500 */
+      --accent:#22d3ee; /* cyan-400 */
+      --ok:#34d399; /* emerald-400 */
+      --warn:#fbbf24; /* amber-400 */
+      --danger:#f87171; /* rose-400 */
+      --code:#0b1020; /* deep */
+      --border: rgba(148,163,184,.25);
+      --shadow: 0 10px 30px rgba(2,8,23,.45);
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg:#f8fafc; --card:#ffffff; --muted:#475569; --text:#0f172a; --brand:#2563eb; --brand-strong:#1d4ed8; --accent:#0891b2; --ok:#059669; --warn:#d97706; --danger:#dc2626; --code:#0f172a; --border: rgba(15,23,42,.1); --shadow: 0 10px 30px rgba(2,8,23,.08);
+      }
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";}
+    a{color:var(--brand)} a:hover{color:var(--brand-strong)}
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    .hero{display:grid;grid-template-columns:1.2fr 1fr;gap:32px;align-items:center;padding:40px 0}
+    .badge{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--border);padding:6px 10px;border-radius:999px;color:var(--muted);font-size:12px}
+    .title{font-weight:800;letter-spacing:-.02em;line-height:1.05;font-size:clamp(28px,5vw,44px);margin:14px 0 10px}
+    .subtitle{color:var(--muted);font-size:clamp(14px,2vw,18px);max-width:58ch}
+    .cta{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap}
+    .btn{background:var(--brand);color:white;border:none;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);transition:transform .08s ease, filter .2s}
+    .btn:hover{filter:brightness(1.05)} .btn:active{transform:translateY(1px)}
+    .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:var(--shadow)}
+    .grid{display:grid;gap:18px}
+    .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+    .grid.cols-2{grid-template-columns:repeat(2,1fr)}
+    .muted{color:var(--muted)}
+    .kpis{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px}
+    .kpi{background:rgba(96,165,250,.08);border:1px solid var(--border);padding:10px 12px;border-radius:10px;font-size:12px}
+    .section{padding:28px 0}
+    .code{background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.02)), var(--code);border:1px solid var(--border);border-radius:14px;padding:12px;overflow:auto;position:relative}
+    pre{margin:0;white-space:pre-wrap}
+    .copy{position:absolute;top:10px;right:10px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:rgba(0,0,0,.2);backdrop-filter: blur(4px);cursor:pointer;color:var(--text);font-size:12px}
+    .pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border);padding:6px 10px;border-radius:999px}
+    .footer{padding:40px 0;color:var(--muted);font-size:14px}
+    .logo{font-weight:900;letter-spacing:.4px}
+    .hero-visual{position:relative}
+    .blob{position:absolute;inset:0;filter:blur(40px);opacity:.35;background:radial-gradient(800px 400px at 70% 30%,var(--accent),transparent),radial-gradient(600px 300px at 20% 80%,var(--brand),transparent)}
+    .window{position:relative;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+    .win-bar{display:flex;gap:8px;padding:10px;border-bottom:1px solid var(--border)}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .dot.red{background:#ef4444}.dot.yellow{background:#f59e0b}.dot.green{background:#22c55e}
+    .win-body{padding:14px;font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:13px;color:#e2e8f0}
+    .list{display:grid;gap:10px}
+    ul{margin:0;padding-left:18px}
+    li{margin:6px 0}
+    .tag{font-size:11px;color:var(--muted);border:1px dashed var(--border);padding:4px 8px;border-radius:999px}
+    @media (max-width: 900px){.hero{grid-template-columns:1fr;}.grid.cols-3{grid-template-columns:1fr}.grid.cols-2{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header class="container" style="display:flex;align-items:center;justify-content:space-between;padding-top:20px">
+    <div class="logo">S3 Backup Tool</div>
+    <nav style="display:flex;gap:16px;align-items:center">
+      <a href="#features">Features</a>
+      <a href="#quickstart">Quick Start</a>
+      <a href="#restore">Restore</a>
+      <a href="#faq">FAQ</a>
+      <a class="pill" href="#repo" id="repoLink">⭐ GitHub</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <span class="badge">Open Source • Python • S3/MinIO</span>
+        <h1 class="title">Fast, verifiable backups to S3/MinIO — in one file.</h1>
+        <p class="subtitle">Incremental uploads, SHA‑256 integrity checks, and S3 versioning. Backup today, restore with confidence tomorrow. Perfect for SRE demos and real workflows.</p>
+        <div class="cta">
+          <a class="btn" href="#quickstart">Get Started</a>
+          <a class="btn ghost" href="#howitworks">How it works</a>
+        </div>
+        <div class="kpis">
+          <div class="kpi">Incremental uploads</div>
+          <div class="kpi">SHA‑256 verification</div>
+          <div class="kpi">S3 versioning</div>
+          <div class="kpi">Dry‑run mode</div>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="blob"></div>
+        <div class="window">
+          <div class="win-bar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+          <div class="win-body">
+<pre><code>PS C:\&gt; python backup.py backup \  
+  --source .\testdata \
+  --bucket my-backups \
+  --prefix laptop-001 \
+  --verify
+
+[upload] a.txt
+  - verify: OK
+Done. uploaded=1 skipped=0 verified=1
+</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <h2 style="margin:0 0 12px">Features</h2>
+      <div class="grid cols-3">
+        <div class="card">
+          <h3>Incremental by Hash</h3>
+          <p class="muted">Only changed files are uploaded. A local manifest tracks SHA‑256 checksums to skip unchanged files.</p>
+        </div>
+        <div class="card">
+          <h3>Integrity Verification</h3>
+          <p class="muted">Use <code>--verify</code> to re‑download after upload and confirm a matching SHA‑256. Trust, but verify.</p>
+        </div>
+        <div class="card">
+          <h3>S3 Versioning</h3>
+          <p class="muted">Enable bucket versioning to recover from accidental edits or deletes. Roll back with confidence.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="howitworks" class="section">
+      <h2 style="margin:0 0 12px">How it works</h2>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Backup Flow</h3>
+          <div class="list">
+            <ul>
+              <li>Hash each file (SHA‑256) and compare with previous manifest</li>
+              <li>Upload only new/changed files to S3 (or MinIO)</li>
+              <li>Attach file hash in object metadata</li>
+              <li>Optionally re‑download to verify integrity</li>
+              <li>Write/update <code>manifest.json</code> locally and upload timestamped copy</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Restore Flow</h3>
+          <ul>
+            <li>Read the latest manifest (local or from bucket)</li>
+            <li>Download the latest version of each file</li>
+            <li>Optional integrity re‑check on restore</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="quickstart" class="section">
+      <h2 style="margin:0 0 12px">Quick Start</h2>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Install</h3>
+          <div class="code"><button class="copy" data-copy="pip install -r requirements.txt">Copy</button><pre><code>python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+aws configure  # set keys & region</code></pre></div>
+        </div>
+        <div class="card">
+          <h3>Create & version your bucket</h3>
+          <div class="code"><button class="copy" data-copy="aws s3api create-bucket --bucket my-backups --region us-east-1
+aws s3api put-bucket-versioning --bucket my-backups --versioning-configuration Status=Enabled">Copy</button><pre><code>aws s3api create-bucket --bucket my-backups --region us-east-1
+aws s3api put-bucket-versioning --bucket my-backups --versioning-configuration Status=Enabled</code></pre></div>
+        </div>
+      </div>
+      <div class="grid cols-2" style="margin-top:18px">
+        <div class="card">
+          <h3>Run a backup</h3>
+          <div class="code"><button class="copy" data-copy="python backup.py backup --source C:\\Users\\shri\\Documents --bucket my-backups --prefix laptop-001 --verify">Copy</button><pre><code>python backup.py backup \
+  --source C:\Users\shri\Documents \
+  --bucket my-backups \
+  --prefix laptop-001 \
+  --verify</code></pre></div>
+        </div>
+        <div class="card">
+          <h3>Restore files</h3>
+          <div class="code"><button class="copy" data-copy="python backup.py restore --bucket my-backups --prefix laptop-001 --restore-target .\restore --verify">Copy</button><pre><code>python backup.py restore \
+  --bucket my-backups \
+  --prefix laptop-001 \
+  --restore-target .\restore \
+  --verify</code></pre></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="restore" class="section">
+      <h2 style="margin:0 0 12px">Why this matters</h2>
+      <div class="grid cols-3">
+        <div class="card"><h3>Reliability</h3><p class="muted">Versioning + integrity checks reduce the chance of silent data loss and make rollbacks straightforward.</p></div>
+        <div class="card"><h3>Efficiency</h3><p class="muted">Incremental uploads save bandwidth and time; <code>--dry-run</code> shows changes before you commit.</p></div>
+        <div class="card"><h3>SRE‑Ready</h3><p class="muted">Demonstrates automation, observability mindset, and recovery planning — core SRE principles.</p></div>
+      </div>
+    </section>
+
+    <section id="faq" class="section">
+      <h2 style="margin:0 0 12px">FAQ</h2>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Does it support MinIO?</h3>
+          <p class="muted">Yes. Run MinIO locally and pass <code>--endpoint http://127.0.0.1:9000</code>.</p>
+        </div>
+        <div class="card">
+          <h3>What about encryption?</h3>
+          <p class="muted">You can enable SSE‑S3/SSE‑KMS by extending the <code>put_object</code> call; see README roadmap.</p>
+        </div>
+        <div class="card">
+          <h3>How do I schedule backups?</h3>
+          <p class="muted">Use Windows Task Scheduler or cron. Trigger the same CLI with your preferred cadence.</p>
+        </div>
+        <div class="card">
+          <h3>Large files?</h3>
+          <p class="muted">Boto3 supports multipart uploads; add parallelism if you expect multi‑GB files.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h3 id="repo">Project Links</h3>
+        <input id="repoInput" value="https://github.com/shri-124/S3_Backup_Automation" readonly style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text);opacity:0.7"/>
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <button class="btn" id="copyRepo">Copy link</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="container footer">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>© <span id="year"></span> S3 Backup Tool</div>
+        <div>
+          <a href="#">Home</a> ·
+          <a href="#features">Features</a> ·
+          <a href="#quickstart">Quick Start</a>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    // Copy buttons
+    document.querySelectorAll('.copy').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const text = btn.getAttribute('data-copy') || btn.nextElementSibling?.innerText || '';
+        navigator.clipboard.writeText(text).then(()=>{
+          const original = btn.textContent; btn.textContent='Copied!';
+          setTimeout(()=>btn.textContent=original,1000);
+        });
+      });
+    });
+    
+    // Repo link copy functionality
+    const repoInput = document.getElementById('repoInput');
+    const repoLink = document.getElementById('repoLink');
+    
+    // Set the GitHub link href to the repo URL
+    repoLink.href = repoInput.value;
+    
+    // Copy repo link button
+    document.getElementById('copyRepo').addEventListener('click',()=>{
+      const url = repoInput.value;
+      navigator.clipboard.writeText(url).then(()=>{
+        const btn = document.getElementById('copyRepo');
+        const original = btn.textContent; 
+        btn.textContent='Copied!';
+        setTimeout(()=>btn.textContent=original,1000);
+      }).catch(err => {
+        console.error('Failed to copy: ', err);
+        alert('Failed to copy URL to clipboard');
+      });
+    });
+    
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
